@@ -45,6 +45,7 @@ class SPOBacktester:
         seed=42,
         normalize_features=True,
         context_history=20,
+        target_horizon=20,
     ):
         """
         执行滚动回测。
@@ -117,7 +118,9 @@ class SPOBacktester:
                 )
 
             train_ds = SPODataset(
-                train_data, context_history=context_history if is_cvar else 0
+                train_data,
+                context_history=context_history if is_cvar else 0,
+                target_horizon=target_horizon,
             )
             train_loader = DataLoader(
                 train_ds,
@@ -144,6 +147,7 @@ class SPOBacktester:
                 rebalance_date=rebalance_date,
                 tickers=tickers,
                 feature_cols=feature_cols,
+                target_horizon=target_horizon,
             )
             pred_cost = trainer.predict(x_step).flatten()
             prediction_rows.extend(
@@ -152,7 +156,7 @@ class SPOBacktester:
                         "rebalance_date": rebalance_date,
                         "effective_date": effective_date,
                         "ticker": ticker,
-                        "spo_pred": float(pred_cost[i]),
+                        "spo_pred": float(-pred_cost[i]),
                         "true_r": float(true_r[i]),
                     }
                     for i, ticker in enumerate(tickers)
@@ -338,7 +342,9 @@ class SPOBacktester:
         test_data = test_data.drop(columns=drop_cols)
         return train_data, test_data
 
-    def _build_rebalance_snapshot(self, test_data, rebalance_date, tickers, feature_cols):
+    def _build_rebalance_snapshot(
+        self, test_data, rebalance_date, tickers, feature_cols, target_horizon
+    ):
         test_data = test_data.copy()
         test_data["Date"] = pd.to_datetime(test_data["Date"])
         rebalance_date = pd.to_datetime(rebalance_date)
@@ -376,7 +382,18 @@ class SPOBacktester:
             raise ValueError(f"有效日 {effective_date.date()} 特征缺失。")
 
         x_step = step_df[feature_cols].values.astype(float)
-        true_r = step_df["log_return"].values.astype(float)
+        future_rows = test_data[test_data["Date"] > effective_date].copy()
+        future_rows = future_rows.sort_values(["ticker", "Date"])
+        true_r_vals = []
+        for ticker in tickers:
+            one = future_rows[future_rows["ticker"] == ticker]["log_return"].head(
+                target_horizon
+            )
+            if len(one) < target_horizon:
+                true_r_vals.append(np.nan)
+            else:
+                true_r_vals.append(float(one.sum()))
+        true_r = np.array(true_r_vals, dtype=float)
         return torch.FloatTensor(x_step), effective_date, true_r
 
     def _build_scenarios(self, train_data, tickers, context_history):

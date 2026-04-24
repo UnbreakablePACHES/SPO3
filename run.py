@@ -88,6 +88,7 @@ def main():
     )
 
     logger.info("开始执行训练与滚动回测...")
+    target_horizon = cfg["hyperparams"].get("target_horizon", 20)
     backtester.run(
         df=feat_df,
         trainer_cls=SPOTrainer,
@@ -100,6 +101,7 @@ def main():
         seed=cfg["seed"],
         normalize_features=cfg.get("feature_normalization", True),
         context_history=cfg["hyperparams"].get("context_history", 20),
+        target_horizon=target_horizon,
     )
 
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
@@ -138,6 +140,7 @@ def main():
         risk_aversion=risk_aversion,
         pred_epochs=po_pred_epochs,
         pred_lr=po_pred_lr,
+        target_horizon=target_horizon,
     )
 
     returns_df = feat_df.pivot(
