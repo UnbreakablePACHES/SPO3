@@ -30,6 +30,7 @@ class SPOBacktester:
         )
         self.seed = 42
         self.feature_contributions = None
+        self.predictions = None
 
     def run(
         self,
@@ -87,6 +88,7 @@ class SPOBacktester:
         rebalance_dates = []
         holding_periods = []
         contribution_rows = []
+        prediction_rows = []
         is_cvar = getattr(self.opt_model, "requires_scenarios", False)
         self.seed = seed
 
@@ -144,6 +146,16 @@ class SPOBacktester:
                 feature_cols=feature_cols,
             )
             pred_cost = trainer.predict(x_step).flatten()
+            prediction_rows.extend(
+                [
+                    {
+                        "rebalance_date": rebalance_date,
+                        "ticker": ticker,
+                        "spo_pred": float(pred_cost[i]),
+                    }
+                    for i, ticker in enumerate(tickers)
+                ]
+            )
             contrib_df = predictor.get_feature_contributions(
                 x_step=x_step,
                 tickers=tickers,
@@ -192,6 +204,10 @@ class SPOBacktester:
                     "contribution",
                 ]
             )
+        if prediction_rows:
+            self.predictions = pd.DataFrame(prediction_rows)
+        else:
+            self.predictions = pd.DataFrame(columns=["rebalance_date", "ticker", "spo_pred"])
         return self.results
 
     def build_feature_contribution_timeseries(

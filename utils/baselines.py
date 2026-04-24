@@ -22,6 +22,7 @@ class BaselineRunner:
         self.trading_day_shifter = (
             TradingDayShifter(trading_days_path) if trading_days_path else None
         )
+        self.pto_predictions = None
 
     def _infer_backtest_range(self, df, window_months, test_start_date=None):
         first_date = pd.to_datetime(df["Date"].min())
@@ -251,6 +252,7 @@ class BaselineRunner:
         all_weights = []
         rebalance_dates = []
         holding_periods = []
+        prediction_rows = []
 
         for window in generator:
             train_data = df[
@@ -292,6 +294,16 @@ class BaselineRunner:
             predictor.eval()
             with torch.no_grad():
                 mu_pred = predictor(x_step.to(self.device)).cpu().numpy().reshape(-1)
+            prediction_rows.extend(
+                [
+                    {
+                        "rebalance_date": pd.to_datetime(window.test_start),
+                        "ticker": ticker,
+                        "pto_pred": float(mu_pred[i]),
+                    }
+                    for i, ticker in enumerate(tickers)
+                ]
+            )
 
             weights = self._solve_markowitz(
                 mu=mu_pred, cov=cov, risk_aversion=risk_aversion
@@ -303,4 +315,10 @@ class BaselineRunner:
             holding_periods.append((rebalance_dt, pd.to_datetime(window.test_end)))
 
         weights_df = pd.DataFrame(all_weights, index=rebalance_dates, columns=tickers)
+        if prediction_rows:
+            self.pto_predictions = pd.DataFrame(prediction_rows)
+        else:
+            self.pto_predictions = pd.DataFrame(
+                columns=["rebalance_date", "ticker", "pto_pred"]
+            )
         return weights_df, holding_periods
