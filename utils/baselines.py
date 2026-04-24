@@ -22,6 +22,7 @@ class BaselineRunner:
         self.trading_day_shifter = (
             TradingDayShifter(trading_days_path) if trading_days_path else None
         )
+        self.pto_predictions = None
 
     def _infer_backtest_range(self, df, window_months, test_start_date=None):
         first_date = pd.to_datetime(df["Date"].min())
@@ -41,7 +42,7 @@ class BaselineRunner:
         test_end = pd.to_datetime(df["Date"].max())
         return test_start, test_end
 
-    def _build_rebalance_input(self, test_data, rebalance_date, tickers, feature_cols):
+    def _build_rebalance_snapshot(self, test_data, rebalance_date, tickers, feature_cols):
         test_data = test_data.copy()
         test_data["Date"] = pd.to_datetime(test_data["Date"])
         rebalance_date = pd.to_datetime(rebalance_date)
@@ -68,7 +69,8 @@ class BaselineRunner:
             raise ValueError(f"有效日 {effective_date.date()} 特征缺失。")
 
         x_step = step_df[feature_cols].values.astype(float)
-        return torch.FloatTensor(x_step)
+        true_r = step_df["log_return"].values.astype(float)
+        return torch.FloatTensor(x_step), effective_date, true_r
 
     def _build_return_stats(self, train_data, tickers):
         returns = (
@@ -251,6 +253,7 @@ class BaselineRunner:
         all_weights = []
         rebalance_dates = []
         holding_periods = []
+        prediction_rows = []
 
         for window in generator:
             train_data = df[
@@ -282,16 +285,29 @@ class BaselineRunner:
                 epochs=pred_epochs,
                 lr=pred_lr,
             )
-            x_step = self._build_rebalance_input(
+            x_step, effective_date, true_r = self._build_rebalance_snapshot(
                 test_data=test_data,
                 rebalance_date=pd.to_datetime(window.test_start),
                 tickers=tickers,
                 feature_cols=feature_cols,
-            ).unsqueeze(0)
+            )
+            x_step = x_step.unsqueeze(0)
 
             predictor.eval()
             with torch.no_grad():
                 mu_pred = predictor(x_step.to(self.device)).cpu().numpy().reshape(-1)
+            prediction_rows.extend(
+                [
+                    {
+                        "rebalance_date": pd.to_datetime(window.test_start),
+                        "effective_date": effective_date,
+                        "ticker": ticker,
+                        "pto_pred": float(mu_pred[i]),
+                        "true_r": float(true_r[i]),
+                    }
+                    for i, ticker in enumerate(tickers)
+                ]
+            )
 
             weights = self._solve_markowitz(
                 mu=mu_pred, cov=cov, risk_aversion=risk_aversion
@@ -303,4 +319,10 @@ class BaselineRunner:
             holding_periods.append((rebalance_dt, pd.to_datetime(window.test_end)))
 
         weights_df = pd.DataFrame(all_weights, index=rebalance_dates, columns=tickers)
+        if prediction_rows:
+            self.pto_predictions = pd.DataFrame(prediction_rows)
+        else:
+            self.pto_predictions = pd.DataFrame(
+                columns=["rebalance_date", "effective_date", "ticker", "pto_pred", "true_r"]
+            )
         return weights_df, holding_periods

@@ -30,6 +30,7 @@ class SPOBacktester:
         )
         self.seed = 42
         self.feature_contributions = None
+        self.predictions = None
 
     def run(
         self,
@@ -87,6 +88,7 @@ class SPOBacktester:
         rebalance_dates = []
         holding_periods = []
         contribution_rows = []
+        prediction_rows = []
         is_cvar = getattr(self.opt_model, "requires_scenarios", False)
         self.seed = seed
 
@@ -137,13 +139,25 @@ class SPOBacktester:
             trainer.fit(train_loader, epochs=epochs)
 
             rebalance_date = pd.to_datetime(window.test_start)
-            x_step = self._build_rebalance_input(
+            x_step, effective_date, true_r = self._build_rebalance_snapshot(
                 test_data=test_data,
                 rebalance_date=rebalance_date,
                 tickers=tickers,
                 feature_cols=feature_cols,
             )
             pred_cost = trainer.predict(x_step).flatten()
+            prediction_rows.extend(
+                [
+                    {
+                        "rebalance_date": rebalance_date,
+                        "effective_date": effective_date,
+                        "ticker": ticker,
+                        "spo_pred": float(pred_cost[i]),
+                        "true_r": float(true_r[i]),
+                    }
+                    for i, ticker in enumerate(tickers)
+                ]
+            )
             contrib_df = predictor.get_feature_contributions(
                 x_step=x_step,
                 tickers=tickers,
@@ -191,6 +205,12 @@ class SPOBacktester:
                     "feature",
                     "contribution",
                 ]
+            )
+        if prediction_rows:
+            self.predictions = pd.DataFrame(prediction_rows)
+        else:
+            self.predictions = pd.DataFrame(
+                columns=["rebalance_date", "effective_date", "ticker", "spo_pred", "true_r"]
             )
         return self.results
 
@@ -318,7 +338,7 @@ class SPOBacktester:
         test_data = test_data.drop(columns=drop_cols)
         return train_data, test_data
 
-    def _build_rebalance_input(self, test_data, rebalance_date, tickers, feature_cols):
+    def _build_rebalance_snapshot(self, test_data, rebalance_date, tickers, feature_cols):
         test_data = test_data.copy()
         test_data["Date"] = pd.to_datetime(test_data["Date"])
         rebalance_date = pd.to_datetime(rebalance_date)
@@ -356,7 +376,8 @@ class SPOBacktester:
             raise ValueError(f"有效日 {effective_date.date()} 特征缺失。")
 
         x_step = step_df[feature_cols].values.astype(float)
-        return torch.FloatTensor(x_step)
+        true_r = step_df["log_return"].values.astype(float)
+        return torch.FloatTensor(x_step), effective_date, true_r
 
     def _build_scenarios(self, train_data, tickers, context_history):
         pivot_returns = (
