@@ -43,10 +43,12 @@ class BaselineRunner:
         return test_start, test_end
 
     def _build_rebalance_snapshot(
-        self, test_data, rebalance_date, tickers, feature_cols, target_horizon
+        self, test_data, full_data, rebalance_date, tickers, feature_cols, target_horizon
     ):
         test_data = test_data.copy()
         test_data["Date"] = pd.to_datetime(test_data["Date"])
+        full_data = full_data.copy()
+        full_data["Date"] = pd.to_datetime(full_data["Date"])
         rebalance_date = pd.to_datetime(rebalance_date)
 
         if self.trading_day_shifter is not None:
@@ -71,18 +73,26 @@ class BaselineRunner:
             raise ValueError(f"有效日 {effective_date.date()} 特征缺失。")
 
         x_step = step_df[feature_cols].values.astype(float)
-        future_rows = test_data[test_data["Date"] > effective_date].copy()
-        future_rows = future_rows.sort_values(["ticker", "Date"])
-        true_r_vals = []
-        for ticker in tickers:
-            one = future_rows[future_rows["ticker"] == ticker]["log_return"].head(
-                target_horizon
+        future_rows = full_data[full_data["Date"] > effective_date].copy()
+        future_dates = (
+            future_rows["Date"].drop_duplicates().sort_values().head(target_horizon)
+        )
+        if len(future_dates) < target_horizon:
+            true_r = np.full(len(tickers), np.nan, dtype=float)
+            return torch.FloatTensor(x_step), effective_date, true_r
+
+        horizon_returns = (
+            future_rows[future_rows["Date"].isin(future_dates)]
+            .pivot(index="Date", columns="ticker", values="log_return")
+            .sort_index()
+            .reindex(columns=tickers)
+        )
+        if horizon_returns.shape[0] < target_horizon:
+            true_r = np.full(len(tickers), np.nan, dtype=float)
+        else:
+            true_r = horizon_returns.sum(axis=0, min_count=target_horizon).values.astype(
+                float
             )
-            if len(one) < target_horizon:
-                true_r_vals.append(np.nan)
-            else:
-                true_r_vals.append(float(one.sum()))
-        true_r = np.array(true_r_vals, dtype=float)
         return torch.FloatTensor(x_step), effective_date, true_r
 
     def _build_return_stats(self, train_data, tickers):
@@ -310,6 +320,7 @@ class BaselineRunner:
             )
             x_step, effective_date, true_r = self._build_rebalance_snapshot(
                 test_data=test_data,
+                full_data=df,
                 rebalance_date=pd.to_datetime(window.test_start),
                 tickers=tickers,
                 feature_cols=feature_cols,
