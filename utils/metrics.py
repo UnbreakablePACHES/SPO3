@@ -287,3 +287,76 @@ class StrategyEvaluator:
             os.makedirs(_dir, exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
         plt.close()
+
+    def save_prediction_comparison(
+        self,
+        spo_pred_df,
+        pto_pred_df,
+        save_csv_path,
+        save_plot_path=None,
+    ):
+        if spo_pred_df is None:
+            spo_pred_df = pd.DataFrame(
+                columns=["rebalance_date", "effective_date", "ticker", "spo_pred", "true_r"]
+            )
+        if pto_pred_df is None:
+            pto_pred_df = pd.DataFrame(
+                columns=["rebalance_date", "effective_date", "ticker", "pto_pred", "true_r"]
+            )
+
+        pred_compare = spo_pred_df.merge(
+            pto_pred_df,
+            on=["rebalance_date", "effective_date", "ticker"],
+            how="outer",
+            suffixes=("_spo", "_pto"),
+        )
+
+        if "true_r_spo" in pred_compare.columns and "true_r_pto" in pred_compare.columns:
+            pred_compare["true_r"] = pred_compare["true_r_spo"].combine_first(
+                pred_compare["true_r_pto"]
+            )
+        elif "true_r_spo" in pred_compare.columns:
+            pred_compare["true_r"] = pred_compare["true_r_spo"]
+        elif "true_r_pto" in pred_compare.columns:
+            pred_compare["true_r"] = pred_compare["true_r_pto"]
+
+        pred_compare = pred_compare.drop(
+            columns=[c for c in ["true_r_spo", "true_r_pto"] if c in pred_compare.columns]
+        ).sort_values(["rebalance_date", "ticker"])
+
+        _dir = os.path.dirname(save_csv_path)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
+        pred_compare.to_csv(save_csv_path, index=False)
+
+        if save_plot_path is not None and not pred_compare.empty:
+            pred_plot = pred_compare.copy()
+            pred_plot["rebalance_date"] = pd.to_datetime(pred_plot["rebalance_date"])
+            tickers = sorted(pred_plot["ticker"].dropna().unique().tolist())
+
+            fig, axes = plt.subplots(
+                len(tickers),
+                1,
+                figsize=(14, max(4, 3.2 * len(tickers))),
+                sharex=True,
+            )
+            if len(tickers) == 1:
+                axes = [axes]
+
+            for ax, ticker in zip(axes, tickers):
+                one = pred_plot[pred_plot["ticker"] == ticker].sort_values("rebalance_date")
+                ax.plot(one["rebalance_date"], one["spo_pred"], label="SPO Pred", linewidth=1.2)
+                ax.plot(one["rebalance_date"], one["pto_pred"], label="PTO Pred", linewidth=1.2)
+                ax.plot(one["rebalance_date"], one["true_r"], label="True r", linewidth=1.2)
+                ax.set_title(ticker)
+                ax.grid(alpha=0.25)
+                ax.legend(loc="upper right", fontsize=8)
+
+            plt.tight_layout()
+            plot_dir = os.path.dirname(save_plot_path)
+            if plot_dir:
+                os.makedirs(plot_dir, exist_ok=True)
+            plt.savefig(save_plot_path, dpi=250, bbox_inches="tight")
+            plt.close()
+
+        return pred_compare

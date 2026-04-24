@@ -42,7 +42,7 @@ class BaselineRunner:
         test_end = pd.to_datetime(df["Date"].max())
         return test_start, test_end
 
-    def _build_rebalance_input(self, test_data, rebalance_date, tickers, feature_cols):
+    def _build_rebalance_snapshot(self, test_data, rebalance_date, tickers, feature_cols):
         test_data = test_data.copy()
         test_data["Date"] = pd.to_datetime(test_data["Date"])
         rebalance_date = pd.to_datetime(rebalance_date)
@@ -69,7 +69,8 @@ class BaselineRunner:
             raise ValueError(f"有效日 {effective_date.date()} 特征缺失。")
 
         x_step = step_df[feature_cols].values.astype(float)
-        return torch.FloatTensor(x_step)
+        true_r = step_df["log_return"].values.astype(float)
+        return torch.FloatTensor(x_step), effective_date, true_r
 
     def _build_return_stats(self, train_data, tickers):
         returns = (
@@ -284,12 +285,13 @@ class BaselineRunner:
                 epochs=pred_epochs,
                 lr=pred_lr,
             )
-            x_step = self._build_rebalance_input(
+            x_step, effective_date, true_r = self._build_rebalance_snapshot(
                 test_data=test_data,
                 rebalance_date=pd.to_datetime(window.test_start),
                 tickers=tickers,
                 feature_cols=feature_cols,
-            ).unsqueeze(0)
+            )
+            x_step = x_step.unsqueeze(0)
 
             predictor.eval()
             with torch.no_grad():
@@ -298,8 +300,10 @@ class BaselineRunner:
                 [
                     {
                         "rebalance_date": pd.to_datetime(window.test_start),
+                        "effective_date": effective_date,
                         "ticker": ticker,
                         "pto_pred": float(mu_pred[i]),
+                        "true_r": float(true_r[i]),
                     }
                     for i, ticker in enumerate(tickers)
                 ]
@@ -319,6 +323,6 @@ class BaselineRunner:
             self.pto_predictions = pd.DataFrame(prediction_rows)
         else:
             self.pto_predictions = pd.DataFrame(
-                columns=["rebalance_date", "ticker", "pto_pred"]
+                columns=["rebalance_date", "effective_date", "ticker", "pto_pred", "true_r"]
             )
         return weights_df, holding_periods

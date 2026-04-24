@@ -178,16 +178,12 @@ def main():
     po_weights.to_csv(
         os.path.join(baseline_dir, "po_simplelinear_markowitz_weights.csv")
     )
-    if backtester.predictions is not None and baseline_runner.pto_predictions is not None:
-        pred_compare = backtester.predictions.merge(
-            baseline_runner.pto_predictions,
-            on=["rebalance_date", "ticker"],
-            how="outer",
-        ).sort_values(["rebalance_date", "ticker"])
-        pred_compare.to_csv(
-            os.path.join(baseline_dir, "spo_pto_predictions_comparison.csv"),
-            index=False,
-        )
+    evaluator.save_prediction_comparison(
+        spo_pred_df=backtester.predictions,
+        pto_pred_df=baseline_runner.pto_predictions,
+        save_csv_path=os.path.join(baseline_dir, "spo_pto_predictions_comparison.csv"),
+        save_plot_path=os.path.join(baseline_dir, "spo_pto_true_comparison.png"),
+    )
 
     markowitz_metrics["Equity Curve"].to_csv(
         os.path.join(baseline_dir, "markowitz_equity_curve.csv"), header=["Net_Value"]
