@@ -9,8 +9,11 @@ class SPODataset(Dataset):
     适配基础组合优化 (Standard) 和带风险约束的优化 (CVaR)。
     """
 
-    def __init__(self, df, context_history=0):
+    def __init__(self, df, context_history=0, target_horizon=1):
         self.context_history = context_history
+        self.target_horizon = int(target_horizon)
+        if self.target_horizon < 1:
+            raise ValueError("target_horizon 必须 >= 1")
         self.tickers = sorted(df["ticker"].unique())
         self.num_assets = len(self.tickers)
 
@@ -31,11 +34,22 @@ class SPODataset(Dataset):
             -1, self.num_assets, self.input_dim
         )
         # 收益率矩阵: (Dates, Assets)
-        self.R_all = pivot_df["log_return"].values
+        self.R_all = pivot_df["log_return"].values.astype(float)
+
+        # 未来 target_horizon 天累计收益标签（不含当日，预测 t+1...t+h）
+        n_dates = self.R_all.shape[0]
+        self.R_targets = np.full_like(self.R_all, np.nan, dtype=float)
+        h = self.target_horizon
+        for t in range(n_dates - h):
+            self.R_targets[t] = self.R_all[t + 1 : t + 1 + h].sum(axis=0)
 
         # 2. 确定有效索引范围
         self.start_idx = context_history
-        self.valid_indices = np.arange(self.start_idx, len(pivot_df))
+        max_valid_exclusive = len(pivot_df) - self.target_horizon
+        if max_valid_exclusive <= self.start_idx:
+            self.valid_indices = np.array([], dtype=int)
+        else:
+            self.valid_indices = np.arange(self.start_idx, max_valid_exclusive)
 
     def __len__(self):
         return len(self.valid_indices)
@@ -43,7 +57,7 @@ class SPODataset(Dataset):
     def __getitem__(self, idx):
         t = self.valid_indices[idx]
         x = torch.FloatTensor(self.X_all[t])
-        c = torch.FloatTensor(-self.R_all[t])  # 预测目标：t时刻的负收益（即成本）
+        c = torch.FloatTensor(-self.R_targets[t])  # 预测目标：未来 horizon 天负累计收益（成本）
 
         if self.context_history > 0:
             # 严格逻辑：scenarios = [t-history, t-1] 的真实收益
