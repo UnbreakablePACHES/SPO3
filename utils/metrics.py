@@ -44,12 +44,19 @@ class StrategyEvaluator:
 
     def calculate_tearsheet(self, weights_df, returns_df, holding_periods=None):
         """计算核心回测指标并记录累计收益。"""
+        weights_df = weights_df.copy()
+        returns_df = returns_df.copy()
+        weights_df.index = pd.to_datetime(weights_df.index)
+        returns_df.index = pd.to_datetime(returns_df.index)
+        weights_df = weights_df.sort_index()
         returns_df = returns_df.sort_index()
         daily_weights = self._expand_weights_to_daily(
             weights_df, returns_df, holding_periods
         )
 
         common_dates = daily_weights.index.intersection(returns_df.index)
+        if len(common_dates) == 0:
+            raise ValueError("weights_df 与 returns_df 无重叠日期，无法计算绩效指标。")
         w = daily_weights.loc[common_dates].values
         r = returns_df.loc[common_dates, daily_weights.columns].values
 
@@ -58,13 +65,11 @@ class StrategyEvaluator:
         )
 
         turnover_series = np.zeros(len(common_dates))
-        for i, dt in enumerate(rebalance_dates):
-            if i == 0:
-                prev_w = np.zeros(len(weights_df.columns))
-            else:
-                prev_w = weights_df.iloc[i - 1].values
+        prev_w = np.zeros(len(weights_df.columns))
+        for dt in rebalance_dates:
             cur_w = weights_df.loc[dt].values
             turnover_series[common_dates.get_loc(dt)] = np.sum(np.abs(cur_w - prev_w))
+            prev_w = cur_w
 
         # 计算收益
         if self.returns_type == "log":
