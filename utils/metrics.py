@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 import seaborn as sns
 import os
 from utils.logger import ProjectLogger
@@ -180,33 +181,51 @@ class StrategyEvaluator:
         plot_df.index = pd.to_datetime(plot_df.index)
 
         sns.set_theme(style="white", context="notebook")
-        plt.figure(figsize=(12, 6))
-        for ticker in plot_df.columns:
-            plt.plot(
-                plot_df.index,
-                plot_df[ticker],
-                marker="o",
-                markersize=3,
-                linewidth=1.8,
-                label=ticker,
-            )
+        fig, ax = plt.subplots(figsize=(13, 7))
+        colors = sns.color_palette("tab20", n_colors=len(plot_df.columns))
 
-        plt.title(title, fontsize=15, fontweight="bold")
-        plt.xlabel("Rebalance Date")
-        plt.ylabel("Weight")
-        plt.ylim(
-            min(0.0, plot_df.min().min() - 0.02),
-            max(1.0, plot_df.max().max() + 0.02),
+        ax.stackplot(
+            plot_df.index,
+            plot_df.T.values,
+            labels=plot_df.columns,
+            colors=colors,
+            alpha=0.9,
+            edgecolor="white",
+            linewidth=0.6,
         )
-        plt.grid(axis="y", linestyle="--", alpha=0.6)
-        plt.legend(frameon=False, ncol=min(5, len(plot_df.columns)))
-        plt.tight_layout()
+
+        total_weight = plot_df.sum(axis=1)
+        ax.plot(
+            plot_df.index,
+            total_weight,
+            color="#222222",
+            linewidth=1.2,
+            alpha=0.75,
+            label="Total",
+        )
+
+        ax.set_title(title, fontsize=15, fontweight="bold")
+        ax.set_xlabel("Rebalance Date")
+        ax.set_ylabel("Weight")
+        ax.set_ylim(0, max(1.0, total_weight.max()) * 1.03)
+        ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
+        ax.grid(axis="y", linestyle="--", alpha=0.45)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.legend(
+            frameon=False,
+            ncol=1,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+        )
+        fig.autofmt_xdate(rotation=30, ha="right")
+        fig.tight_layout()
 
         _dir = os.path.dirname(save_path)
         if _dir:
             os.makedirs(_dir, exist_ok=True)
-        plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
-        plt.close()
+        fig.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
 
     def plot_performance(self, metrics, save_path):
         """
