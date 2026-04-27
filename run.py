@@ -43,7 +43,7 @@ def main():
     cfg = _load_config(args.config, args.add_vix)
     exp_dir = _build_experiment_dir(cfg["output_dir"], config_name)
 
-    logger = ProjectLogger.get_logger(log_dir=os.path.join(exp_dir, "logs"))
+    logger = ProjectLogger.get_logger()
     SeedManager.set_seed(cfg["seed"])
 
     with open(os.path.join(exp_dir, "exp_config.yaml"), "w", encoding="utf-8") as f:
