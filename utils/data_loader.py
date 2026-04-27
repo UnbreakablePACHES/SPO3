@@ -1,41 +1,53 @@
+import numpy as np
 import torch
 from torch.utils.data import Dataset
-import numpy as np
 
 
 class SPODataset(Dataset):
-    """
-    通用型 SPO 数据集加载器。
-    适配基础组合优化 (Standard) 和带风险约束的优化 (CVaR)。
+    """Dataset for SPO training.
+
+    Features are daily cross-sectional asset features. The true cost is the
+    negative cumulative log return over the next ``label_window`` trading days.
     """
 
-    def __init__(self, df, context_history=0):
-        self.context_history = context_history
+    def __init__(self, df, context_history=0, label_window=21):
+        self.context_history = int(context_history)
+        self.label_window = int(label_window)
+        if self.context_history < 0:
+            raise ValueError("context_history must be non-negative")
+        if self.label_window <= 0:
+            raise ValueError("label_window must be a positive integer")
+
         self.tickers = sorted(df["ticker"].unique())
         self.num_assets = len(self.tickers)
 
-        # 1. 数据透视与对齐
         feature_cols = [
             c for c in df.columns if c not in ["Date", "ticker", "log_return"]
         ]
         self.input_dim = len(feature_cols)
 
-        # 将长表转为宽表（这里是产生 NaN 的地方）
-        pivot_df = df.pivot(index="Date", columns="ticker")
-
+        pivot_df = df.pivot(index="Date", columns="ticker").sort_index()
         if pivot_df.isnull().any().any():
             pivot_df = pivot_df.dropna()
 
-        # 转换为 numpy 矩阵: (Dates, Assets, Features)
         self.X_all = pivot_df[feature_cols].values.reshape(
             -1, self.num_assets, self.input_dim
         )
-        # 收益率矩阵: (Dates, Assets)
         self.R_all = pivot_df["log_return"].values
+        self.C_all = self._build_forward_costs(self.R_all, self.label_window)
 
-        # 2. 确定有效索引范围
-        self.start_idx = context_history
-        self.valid_indices = np.arange(self.start_idx, len(pivot_df))
+        self.start_idx = self.context_history
+        self.end_idx = len(pivot_df) - self.label_window
+        self.valid_indices = np.arange(self.start_idx, self.end_idx)
+
+    @staticmethod
+    def _build_forward_costs(returns, label_window):
+        """Build costs from t+1 through t+label_window cumulative log returns."""
+        costs = np.full_like(returns, np.nan, dtype=float)
+        for i in range(len(returns) - label_window):
+            forward_log_return = returns[i + 1 : i + 1 + label_window].sum(axis=0)
+            costs[i] = -forward_log_return
+        return costs
 
     def __len__(self):
         return len(self.valid_indices)
@@ -43,11 +55,8 @@ class SPODataset(Dataset):
     def __getitem__(self, idx):
         t = self.valid_indices[idx]
         x = torch.FloatTensor(self.X_all[t])
-        c = torch.FloatTensor(-self.R_all[t])  # 预测目标：t时刻的负收益（即成本）
-
+        c = torch.FloatTensor(self.C_all[t])
         if self.context_history > 0:
-            # 严格逻辑：scenarios = [t-history, t-1] 的真实收益
-            # 这样在训练 SPO+ 计算 oracle 解时，风险评估完全基于历史观测值
             scenarios = torch.FloatTensor(self.R_all[t - self.context_history : t])
             return x, c, scenarios
 

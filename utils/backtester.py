@@ -44,6 +44,7 @@ class SPOBacktester:
         seed=42,
         normalize_features=True,
         context_history=20,
+        label_window=21,
     ):
         """
         执行滚动回测。
@@ -116,8 +117,12 @@ class SPOBacktester:
                 )
 
             train_ds = SPODataset(
-                train_data, context_history=context_history if is_cvar else 0
+                train_data,
+                context_history=context_history if is_cvar else 0,
+                label_window=label_window,
             )
+            if len(train_ds) == 0:
+                continue
             train_loader = DataLoader(
                 train_ds,
                 batch_size=batch_size,

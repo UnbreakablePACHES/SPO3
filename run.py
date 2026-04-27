@@ -100,6 +100,7 @@ def main():
         seed=cfg["seed"],
         normalize_features=cfg.get("feature_normalization", True),
         context_history=cfg["hyperparams"].get("context_history", 20),
+        label_window=cfg["hyperparams"].get("label_window", 1),
     )
 
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
@@ -138,6 +139,7 @@ def main():
         risk_aversion=risk_aversion,
         pred_epochs=po_pred_epochs,
         pred_lr=po_pred_lr,
+        label_window=cfg["hyperparams"].get("label_window", 1),
     )
 
     returns_df = feat_df.pivot(

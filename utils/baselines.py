@@ -146,12 +146,24 @@ class BaselineRunner:
         test_data = test_data.drop(columns=drop_cols)
         return train_data, test_data
 
+    @staticmethod
+    def _build_forward_returns(returns, label_window):
+        labels = np.full_like(returns, np.nan, dtype=float)
+        for i in range(len(returns) - label_window):
+            labels[i] = returns[i + 1 : i + 1 + label_window].sum(axis=0)
+        return labels
+
     def _fit_simple_linear_predictor(
-        self, train_data, tickers, feature_cols, epochs=30, lr=1e-3
+        self, train_data, tickers, feature_cols, epochs=30, lr=1e-3, label_window=1
     ):
         pivot = train_data.pivot(index="Date", columns="ticker").sort_index()
         x_all = pivot[feature_cols].values.reshape(-1, len(tickers), len(feature_cols))
-        y_all = pivot["log_return"].values
+        y_all = self._build_forward_returns(pivot["log_return"].values, label_window)
+        valid_end = len(pivot) - int(label_window)
+        if valid_end <= 0:
+            raise ValueError("Not enough training rows for the requested label_window")
+        x_all = x_all[:valid_end]
+        y_all = y_all[:valid_end]
 
         dataset = TensorDataset(
             torch.tensor(x_all, dtype=torch.float32),
@@ -232,6 +244,7 @@ class BaselineRunner:
         risk_aversion=10.0,
         pred_epochs=30,
         pred_lr=1e-3,
+        label_window=1,
     ):
         tickers = sorted(df["ticker"].unique())
         feature_cols = [
@@ -281,6 +294,7 @@ class BaselineRunner:
                 feature_cols=feature_cols,
                 epochs=pred_epochs,
                 lr=pred_lr,
+                label_window=label_window,
             )
             x_step = self._build_rebalance_input(
                 test_data=test_data,

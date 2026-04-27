@@ -29,6 +29,7 @@ hyperparams:
   lr: 0.001
   batch_size: 32
   rebalance_freq: "MS"
+  label_window: 21  # training target: next 20 trading days cumulative log_return
   context_history: 20  # CVaR 场景历史窗口长度（仅 model_type=cvar 时生效）
 
 # 模型特定参数

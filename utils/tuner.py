@@ -8,7 +8,7 @@ class SPOHyperTuner:
     使用 Optuna 为 SPO 框架进行自动调参
     """
 
-    def __init__(self, df, opt_model, n_trials=20):
+    def __init__(self, df, opt_model, n_trials=20, label_window=21):
         """
         Args:
             df: 预处理后的数据集
@@ -18,6 +18,7 @@ class SPOHyperTuner:
         self.df = df
         self.opt_model = opt_model
         self.n_trials = n_trials
+        self.label_window = label_window
 
     def objective(self, trial):
         # 1. 定义想要优化的超参数搜索空间
@@ -36,6 +37,7 @@ class SPOHyperTuner:
                 window_months=window_months,
                 epochs=epochs,
                 lr=lr,
+                label_window=self.label_window,
             )
 
             # 4. 获取评估指标
