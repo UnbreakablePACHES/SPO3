@@ -14,11 +14,12 @@ backtest_start_date: "2024-01-01"  # 可选：显式指定回测起点（需 >= 
 
 # 特征配置
 add_vix: False  # 是否在特征中加入 VIX 指标
+prediction_return_clip: 0.1  # 限制预测窗口累计 r 到 [-0.2, 0.2]；设为 null 可关闭
 feature_normalization: True  # 是否按滚动训练窗口做 z-score 归一化
 save_feature_contribution: True  # 是否导出每次调仓的特征贡献度
 
 # 模式选择
-model_type: "standard"  # 可选: standard, cvar
+model_type: "cvar"  # 可选: standard, cvar
 pred_type: "linear"    # 可选: linear
 
 # 核心超参数

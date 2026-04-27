@@ -57,6 +57,10 @@ def main():
     if args.context_history is not None:
         cfg["hyperparams"]["context_history"] = args.context_history
     cfg["hyperparams"]["label_window"] = int(cfg["hyperparams"].get("label_window", 21))
+    cfg["prediction_return_clip"] = cfg.get(
+        "prediction_return_clip", cfg.pop("prediction_daily_return_clip", None)
+    )
+    prediction_return_clip = cfg["prediction_return_clip"]
 
     with open(os.path.join(exp_dir, "exp_config.yaml"), "w", encoding="utf-8") as f:
         yaml.dump(cfg, f)
@@ -103,6 +107,7 @@ def main():
         normalize_features=cfg.get("feature_normalization", True),
         context_history=cfg["hyperparams"].get("context_history", 20),
         label_window=return_window_days,
+        prediction_return_clip=prediction_return_clip,
     )
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
     evaluator = StrategyEvaluator(fee_rate=eval_fee_rate)
@@ -153,6 +158,7 @@ def main():
         pred_epochs=po_pred_epochs,
         pred_lr=po_pred_lr,
         label_window=return_window_days,
+        prediction_return_clip=prediction_return_clip,
     )
 
     returns_df = feat_df.pivot(

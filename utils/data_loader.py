@@ -30,10 +30,14 @@ class SPODataset(Dataset):
         if pivot_df.isnull().any().any():
             pivot_df = pivot_df.dropna()
 
-        self.X_all = pivot_df[feature_cols].values.reshape(
-            -1, self.num_assets, self.input_dim
+        self.X_all = np.stack(
+            [
+                pivot_df[col].reindex(columns=self.tickers).values
+                for col in feature_cols
+            ],
+            axis=2,
         )
-        self.R_all = pivot_df["log_return"].values
+        self.R_all = pivot_df["log_return"].reindex(columns=self.tickers).values
         self.C_all = self._build_forward_costs(self.R_all, self.label_window)
 
         self.start_idx = self.context_history

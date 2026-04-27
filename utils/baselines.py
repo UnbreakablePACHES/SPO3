@@ -158,8 +158,15 @@ class BaselineRunner:
         self, train_data, tickers, feature_cols, epochs=30, lr=1e-3, label_window=21
     ):
         pivot = train_data.pivot(index="Date", columns="ticker").sort_index()
-        x_all = pivot[feature_cols].values.reshape(-1, len(tickers), len(feature_cols))
-        y_all = self._build_forward_returns(pivot["log_return"].values, label_window)
+        if pivot.isnull().any().any():
+            pivot = pivot.dropna()
+
+        x_all = np.stack(
+            [pivot[col].reindex(columns=tickers).values for col in feature_cols],
+            axis=2,
+        )
+        returns = pivot["log_return"].reindex(columns=tickers).values
+        y_all = self._build_forward_returns(returns, label_window)
         valid_end = len(pivot) - int(label_window)
         if valid_end <= 0:
             raise ValueError("Not enough training rows for the requested label_window")
@@ -246,6 +253,7 @@ class BaselineRunner:
         pred_epochs=30,
         pred_lr=1e-3,
         label_window=21,
+        prediction_return_clip=None,
     ):
         tickers = sorted(df["ticker"].unique())
         feature_cols = [
@@ -308,6 +316,9 @@ class BaselineRunner:
             predictor.eval()
             with torch.no_grad():
                 mu_pred = predictor(x_step.to(self.device)).cpu().numpy().reshape(-1)
+            if prediction_return_clip is not None:
+                clip = abs(float(prediction_return_clip))
+                mu_pred = np.clip(mu_pred, -clip, clip)
 
             weights = self._solve_markowitz(
                 mu=mu_pred, cov=cov, risk_aversion=risk_aversion

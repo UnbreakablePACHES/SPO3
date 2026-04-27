@@ -14,7 +14,7 @@ backtest_start_date: "2020-01-01"  # 可选：显式指定回测起点（需 >= 
 
 # 特征配置
 add_vix: False  # 是否在特征中加入 VIX 指标
-
+prediction_return_clip: 0.1  
 # 模式选择
 model_type: "cvar"  # 可选: standard, cvar
 pred_type: "linear"    # 可选: linear
@@ -27,7 +27,7 @@ hyperparams:
   lr: 0.001
   batch_size: 32
   rebalance_freq: "MS"
-  context_history: 60  
+  context_history: 60
 
 # 模型特定参数
 model_args:

@@ -46,6 +46,7 @@ class SPOBacktester:
         normalize_features=True,
         context_history=20,
         label_window=21,
+        prediction_return_clip=None,
     ):
         """
         执行滚动回测。
@@ -152,6 +153,11 @@ class SPOBacktester:
                 feature_cols=feature_cols,
             )
             pred_cost = trainer.predict(x_step).flatten()
+            pred_return = -pred_cost
+            if prediction_return_clip is not None:
+                clip = abs(float(prediction_return_clip))
+                pred_return = np.clip(pred_return, -clip, clip)
+                pred_cost = -pred_return
             contrib_df = predictor.get_feature_contributions(
                 x_step=x_step,
                 tickers=tickers,
@@ -184,7 +190,7 @@ class SPOBacktester:
             rebalance_dates.append(rebalance_dt)
             holding_periods.append((rebalance_dt, pd.to_datetime(window.test_end)))
             # SPO is trained on cost = -forward return.
-            predicted_return_rows.append(-pred_cost)
+            predicted_return_rows.append(pred_return)
 
         self.results = pd.DataFrame(all_weights, index=rebalance_dates, columns=tickers)
         self.predicted_returns = pd.DataFrame(
