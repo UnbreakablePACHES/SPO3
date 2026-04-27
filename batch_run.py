@@ -40,7 +40,7 @@ tasks = [
             "--prediction_return_clip",
             "null",
             "--weight_adjust_delta",
-            "0.5",
+            "0.1",
         ],
     },
     {
@@ -81,7 +81,7 @@ tasks = [
             "--prediction_return_clip",
             "null",
             "--weight_adjust_delta",
-            "0.5",
+            "0.1",
         ],
     },
     {
@@ -122,7 +122,7 @@ tasks = [
             "--prediction_return_clip",
             "null",
             "--weight_adjust_delta",
-            "0.5",
+            "0.1",
         ],
     },
 ]
