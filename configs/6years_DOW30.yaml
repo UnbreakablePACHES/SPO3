@@ -1,13 +1,17 @@
 # 实验环境配置
 seed: 42
-data_dir: "data/raw/B_stocks"
+data_dir: "data/raw/B_etfs"
 output_dir: "outputs"
 trading_days_path: "data/tradingdays(2013-2025).csv"
 
 # 资产配置
 tickers: [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "V",
-    "UNH", "HD", "PG", "MA", "DIS", "KO", "PEP", "INTC", "CSCO", "XOM", "CVX"
+    "MMM", "AXP", "AMGN", "AMZN", "AAPL",
+    "BA", "CAT", "CVX", "CSCO", "KO",
+    "DIS", "GS", "HD", "HON", "IBM",
+    "JNJ", "JPM", "MCD", "MRK", "MSFT",
+    "NKE", "NVDA", "PG", "CRM", "SHW",
+    "TRV", "UNH", "VZ", "V", "WMT"
 ]
 
 # 数据时间范围
@@ -17,7 +21,7 @@ backtest_start_date: "2020-01-01"  # 可选：显式指定回测起点（需 >= 
 
 # 特征配置
 add_vix: False  # 是否在特征中加入 VIX 指标
-prediction_return_clip: 0.2  # 限制预测窗口累计 r 到 [-0.2, 0.2]；设为 null 可关闭
+prediction_return_clip: 0.1  # 限制预测窗口累计 r 到 [-0.2, 0.2]；设为 null 可关闭
 
 # 模式选择
 model_type: "standard"  # 可选: standard, cvar
@@ -25,7 +29,7 @@ pred_type: "linear"    # 可选: linear
 
 # 核心超参数
 hyperparams:
-  fee_rate: 0.002
+  fee_rate: 0.005
   window_months: 9
   epochs: 20
   lr: 0.001
