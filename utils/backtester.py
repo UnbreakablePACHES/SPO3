@@ -91,7 +91,10 @@ class SPOBacktester:
         holding_periods = []
         contribution_rows = []
         predicted_return_rows = []
-        is_cvar = getattr(self.opt_model, "requires_scenarios", False)
+        requires_scenarios = getattr(self.opt_model, "requires_scenarios", False)
+        scenario_history = int(
+            getattr(self.opt_model, "scenario_history", context_history)
+        )
         self.seed = seed
 
         for window_idx, window in enumerate(generator):
@@ -121,10 +124,17 @@ class SPOBacktester:
 
             train_ds = SPODataset(
                 train_data,
-                context_history=context_history if is_cvar else 0,
+                context_history=scenario_history if requires_scenarios else 0,
                 label_window=label_window,
             )
             if len(train_ds) == 0:
+                if requires_scenarios:
+                    print(
+                        "[Skip] Not enough training history for scenario model: "
+                        f"need more than scenario_history({scenario_history}) + "
+                        f"label_window({label_window}) observations, "
+                        f"got {len(train_data['Date'].unique())} dates."
+                    )
                 continue
             train_loader = DataLoader(
                 train_ds,
@@ -169,17 +179,21 @@ class SPOBacktester:
             prev_w = (
                 all_weights[-1] if all_weights else np.zeros(num_assets, dtype=float)
             )
-            if is_cvar:
+            if requires_scenarios:
                 scenario_returns = self._build_scenarios(
                     train_data=train_data,
                     tickers=tickers,
-                    context_history=context_history,
+                    context_history=scenario_history,
                 )
                 if scenario_returns is None:
                     continue
-                weights, _ = self.opt_model.solve(
-                    cost=pred_cost, scenario_returns=scenario_returns
-                )
+                solve_kwargs = {
+                    "cost": pred_cost,
+                    "scenario_returns": scenario_returns,
+                }
+                if getattr(self.opt_model, "supports_turnover", False):
+                    solve_kwargs["prev_weight"] = prev_w
+                weights, _ = self.opt_model.solve(**solve_kwargs)
             else:
                 weights, _ = self.opt_model.solve(
                     cost_vec=pred_cost, prev_weight=prev_w
@@ -193,6 +207,19 @@ class SPOBacktester:
             predicted_return_rows.append(pred_return)
 
         self.results = pd.DataFrame(all_weights, index=rebalance_dates, columns=tickers)
+        if self.results.empty:
+            if requires_scenarios:
+                raise ValueError(
+                    "No rebalance weights were generated. Scenario-based models need "
+                    f"more than scenario_history({scenario_history}) + "
+                    f"label_window({label_window}) trading days inside each training "
+                    "window. Increase hyperparams.window_months, reduce cov_history/"
+                    "context_history, or move backtest_start_date later."
+                )
+            raise ValueError(
+                "No rebalance weights were generated. Check the date range, "
+                "backtest_start_date, and rolling window settings."
+            )
         self.predicted_returns = pd.DataFrame(
             predicted_return_rows, index=rebalance_dates, columns=tickers
         )

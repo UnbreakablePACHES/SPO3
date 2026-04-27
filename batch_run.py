@@ -2,11 +2,6 @@ import subprocess
 
 # 1. 定义实验清单（仅包含差异化的参数）
 tasks = [
-    {"cfg": "configs\\6years_ETF_a.yaml", "vix": "True"},
-    {"cfg": "configs\\6years_ETF_b.yaml", "vix": "True"},
-    {"cfg": "configs\\6years_Stocks_a.yaml", "vix": "True"},
-    {"cfg": "configs\\6years_Stocks_b.yaml", "vix": "True"},
-
     {"cfg": "configs\\6years_ETF_a.yaml", "vix": "False"},
     {"cfg": "configs\\6years_ETF_b.yaml", "vix": "False"},
     {"cfg": "configs\\6years_Stocks_a.yaml", "vix": "False"},

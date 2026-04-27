@@ -14,8 +14,7 @@ backtest_start_date: "2020-01-01"  # 可选：显式指定回测起点（需 >= 
 
 # 特征配置
 add_vix: False  # 是否在特征中加入 VIX 指标
-prediction_return_clip: 0.1  # 限制预测窗口累计 r 到 [-0.2, 0.2]；设为 null 可关闭
-
+prediction_return_clip: 0.1  
 # 模式选择
 model_type: "standard"  # 可选: standard, cvar
 pred_type: "linear"    # 可选: linear
@@ -28,10 +27,16 @@ hyperparams:
   lr: 0.001
   batch_size: 32
   rebalance_freq: "MS"
-  context_history: 20  # CVaR 场景历史窗口长度（仅 model_type=cvar 时生效）
+  context_history: 60
 
 # 模型特定参数
 model_args:
   alpha: 0.95          # 仅用于 cvar
   lambda_cvar: 1.0     # 仅用于 cvar
   budget: 1.0
+
+# Baseline 参数
+baseline_args:
+  risk_aversion: 10.0
+  po_pred_epochs: 30
+  po_pred_lr: 0.001

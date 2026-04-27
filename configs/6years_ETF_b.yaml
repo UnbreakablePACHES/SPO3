@@ -35,3 +35,9 @@ model_args:
   alpha: 0.95          # 仅用于 cvar
   lambda_cvar: 1.0     # 仅用于 cvar
   budget: 1.0
+
+# Baseline 参数
+baseline_args:
+  risk_aversion: 10.0
+  po_pred_epochs: 30
+  po_pred_lr: 0.001

@@ -64,6 +64,8 @@ class SPOPlusLoss(torch.nn.Module):
         # B: batch size
         # N: 每个样本的 cost 向量维度（例如资产数）
         B, N = pred_cost.shape
+        uses_scenarios = getattr(self.opt_model, "requires_scenarios", False)
+        scenario_losses = []
 
         # 用于保存 batch 中每个样本在真实 cost 下的最优解 x*(c)
         true_sols = []
@@ -81,12 +83,27 @@ class SPOPlusLoss(torch.nn.Module):
             # 调用下游优化模型求解：
             # sol: 在真实 cost 下的最优决策
             # obj: 对应的最优目标值
-            if getattr(self.opt_model, "requires_scenarios", False):
+            if uses_scenarios:
                 if scenario_returns is None:
-                    raise ValueError("CVaR 模式需要 scenario_returns，但当前为 None")
+                    raise ValueError("scenario-based opt model requires scenario_returns")
                 sc_np = scenario_returns[i].detach().cpu().numpy()
                 # 这里的调用现在会被 PortfolioCVaRModel.solve(cost=..., scenario_returns=...) 正确处理
                 sol, obj = self.opt_model.solve(cost=ct_np, scenario_returns=sc_np)
+                sol_tensor = torch.as_tensor(
+                    np.asarray([sol]), dtype=torch.float32, device=pred_cost.device
+                )
+                obj_tensor = torch.as_tensor(
+                    np.asarray([obj]), dtype=torch.float32, device=pred_cost.device
+                )
+                scenario_losses.append(
+                    self.loss_fn(
+                        pred_cost[i : i + 1],
+                        true_cost[i : i + 1],
+                        sol_tensor,
+                        obj_tensor,
+                    )
+                )
+                continue
             elif getattr(self.opt_model, "fee_rate", 0) > 0:
                 # 训练阶段无法追踪每个历史样本对应的实际前期持仓，
                 # 使用零向量作为 prev_weight 是已知的近似处理（SPO+ with tx cost 的常见做法）。
@@ -99,6 +116,9 @@ class SPOPlusLoss(torch.nn.Module):
             # 记录该样本的 oracle 解和目标值
             true_sols.append(sol)
             true_objs.append(obj)
+
+        if uses_scenarios:
+            return torch.stack(scenario_losses).mean()
 
         # 将 list 转成 torch.Tensor，并放到和 pred_cost 相同的 device 上
         # true_sols 的形状应为 (B, N)

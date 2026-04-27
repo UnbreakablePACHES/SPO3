@@ -24,7 +24,7 @@ add_vix: False  # 是否在特征中加入 VIX 指标
 prediction_return_clip: 0.1  # 限制预测窗口累计 r 到 [-0.2, 0.2]；设为 null 可关闭
 
 # 模式选择
-model_type: "standard"  # 可选: standard, cvar
+model_type: "standard"  # 可选: standard, cvar, markowitz
 pred_type: "linear"    # 可选: linear
 
 # 核心超参数
