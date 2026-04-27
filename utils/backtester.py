@@ -100,8 +100,9 @@ class SPOBacktester:
                 (df["Date"] >= window.train_start) & (df["Date"] <= window.train_end)
             ]
             # 修改测试数据的提取，使其允许包含寻找历史特征所需的 buffer
+            # buffer=20天，确保技术指标（如20日MA）能完整计算
             test_data = df[
-                (df["Date"] >= pd.to_datetime(window.test_start) - pd.Timedelta(days=7))
+                (df["Date"] >= pd.to_datetime(window.test_start) - pd.Timedelta(days=20))
                 & (df["Date"] <= pd.to_datetime(window.test_end))
             ]
 
