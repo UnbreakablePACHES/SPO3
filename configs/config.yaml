@@ -18,7 +18,7 @@ feature_normalization: True  # 是否按滚动训练窗口做 z-score 归一化
 save_feature_contribution: True  # 是否导出每次调仓的特征贡献度
 
 # 模式选择
-model_type: "cvar"  # 可选: standard, cvar
+model_type: "standard"  # 可选: standard, cvar
 pred_type: "linear"    # 可选: linear
 
 # 核心超参数
