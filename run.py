@@ -23,7 +23,6 @@ def _load_config(config_path: str, add_vix_arg: Optional[str]):
 
 
 def _build_experiment_dir(output_dir: str, config_name: str):
-    # 生成时间戳
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     exp_name = f"{timestamp}_{config_name}"
     exp_dir = os.path.join(output_dir, exp_name)
@@ -102,9 +101,20 @@ def main():
         context_history=cfg["hyperparams"].get("context_history", 20),
         label_window=cfg["hyperparams"].get("label_window", 1),
     )
-
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
     evaluator = StrategyEvaluator(fee_rate=eval_fee_rate)
+    weights_path, weights_plot_path = evaluator.save_weight_outputs(
+        backtester.results,
+        exp_dir,
+        weights_filename="spo_weights.csv",
+        plot_filename="spo_weights_timeseries.png",
+        title="SPO Portfolio Weights Over Time",
+    )
+    if weights_path is not None:
+        logger.info(f"Saved SPO weights: {weights_path}")
+        logger.info(f"Saved SPO weight time series plot: {weights_plot_path}")
+    else:
+        logger.warning("SPO weights are empty; skipped weight outputs.")
 
     model_metrics = backtester.evaluate(feat_df, fee_rate=eval_fee_rate)
 

@@ -145,6 +145,69 @@ class StrategyEvaluator:
             os.path.join(save_dir, "monthly_returns.csv"), header=["Monthly_Return"]
         )
 
+    def save_weight_outputs(
+        self,
+        weights_df,
+        save_dir,
+        weights_filename="spo_weights.csv",
+        plot_filename="spo_weights_timeseries.png",
+        title="SPO Portfolio Weights Over Time",
+    ):
+        if weights_df is None or weights_df.empty:
+            return None, None
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        weights_to_save = weights_df.copy()
+        weights_to_save.index = pd.to_datetime(weights_to_save.index)
+        weights_to_save.index.name = "rebalance_date"
+
+        weights_path = os.path.join(save_dir, weights_filename)
+        weights_to_save.to_csv(weights_path)
+
+        plot_path = os.path.join(save_dir, plot_filename)
+        self.plot_weight_timeseries(weights_to_save, plot_path, title=title)
+
+        return weights_path, plot_path
+
+    def plot_weight_timeseries(
+        self, weights_df, save_path, title="Portfolio Weights Over Time"
+    ):
+        if weights_df is None or weights_df.empty:
+            return
+
+        plot_df = weights_df.copy()
+        plot_df.index = pd.to_datetime(plot_df.index)
+
+        sns.set_theme(style="white", context="notebook")
+        plt.figure(figsize=(12, 6))
+        for ticker in plot_df.columns:
+            plt.plot(
+                plot_df.index,
+                plot_df[ticker],
+                marker="o",
+                markersize=3,
+                linewidth=1.8,
+                label=ticker,
+            )
+
+        plt.title(title, fontsize=15, fontweight="bold")
+        plt.xlabel("Rebalance Date")
+        plt.ylabel("Weight")
+        plt.ylim(
+            min(0.0, plot_df.min().min() - 0.02),
+            max(1.0, plot_df.max().max() + 0.02),
+        )
+        plt.grid(axis="y", linestyle="--", alpha=0.6)
+        plt.legend(frameon=False, ncol=min(5, len(plot_df.columns)))
+        plt.tight_layout()
+
+        _dir = os.path.dirname(save_path)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close()
+
     def plot_performance(self, metrics, save_path):
         """
         功能 2: 绘制美化后的净值曲线和年度/月度收益图。
