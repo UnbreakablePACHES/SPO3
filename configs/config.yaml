@@ -14,12 +14,12 @@ backtest_start_date: "2024-04-01"  # 可选：显式指定回测起点（需 >= 
 
 # 特征配置
 add_vix: False  # 是否在特征中加入 VIX 指标
-prediction_return_clip: 0.1  # 限制预测窗口累计 r 到 [-0.2, 0.2]；设为 null 可关闭
+prediction_return_clip: null  # 设为 null 表示使用模型原生预测输出，不做 clip
 feature_normalization: True  # 是否按滚动训练窗口做 z-score 归一化
 save_feature_contribution: True  # 是否导出每次调仓的特征贡献度
 
 # 模式选择
-model_type: "markowitz"  # 可选: standard, cvar, markowitz
+model_type: "standard"  # 可选: standard, cvar, markowitz
 pred_type: "linear"    # 可选: linear
 
 # 核心超参数
@@ -32,6 +32,7 @@ hyperparams:
   rebalance_freq: "MS"
   label_window: 21  # training target: next 20 trading days cumulative log_return
   context_history: 20  # CVaR 场景历史窗口长度（仅 model_type=cvar 时生效）
+  weight_adjust_delta: 0.5  # 实际权重 = 上期真实权重 + delta * (目标权重 - 上期真实权重)
 
 # 模型特定参数
 model_args:

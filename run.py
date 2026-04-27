@@ -34,7 +34,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="configs/config.yaml")
     parser.add_argument("--add_vix", type=str, default=None)
+    parser.add_argument("--model_type", type=str, default=None)
+    parser.add_argument("--prediction_return_clip", type=str, default=None)
+    parser.add_argument("--weight_adjust_delta", type=float, default=None)
     parser.add_argument("--lambda_cvar", type=float, default=None)
+    parser.add_argument("--lambda_risk", type=float, default=None)
+    parser.add_argument("--cov_history", type=int, default=None)
     parser.add_argument("--context_history", type=int, default=None)
     args = parser.parse_args()
 
@@ -54,12 +59,26 @@ def main():
 
     if args.lambda_cvar is not None:
         cfg["model_args"]["lambda_cvar"] = args.lambda_cvar
+    if args.lambda_risk is not None:
+        cfg["model_args"]["lambda_risk"] = args.lambda_risk
+    if args.cov_history is not None:
+        cfg["model_args"]["cov_history"] = args.cov_history
     if args.context_history is not None:
         cfg["hyperparams"]["context_history"] = args.context_history
+    if args.model_type is not None:
+        cfg["model_type"] = args.model_type
+    if args.weight_adjust_delta is not None:
+        cfg["hyperparams"]["weight_adjust_delta"] = args.weight_adjust_delta
     cfg["hyperparams"]["label_window"] = int(cfg["hyperparams"].get("label_window", 21))
     cfg["prediction_return_clip"] = cfg.get(
         "prediction_return_clip", cfg.pop("prediction_daily_return_clip", None)
     )
+    if args.prediction_return_clip is not None:
+        clip_arg = args.prediction_return_clip.strip().lower()
+        if clip_arg in {"none", "null"}:
+            cfg["prediction_return_clip"] = None
+        else:
+            cfg["prediction_return_clip"] = float(args.prediction_return_clip)
     prediction_return_clip = cfg["prediction_return_clip"]
 
     with open(os.path.join(exp_dir, "exp_config.yaml"), "w", encoding="utf-8") as f:
@@ -108,6 +127,7 @@ def main():
         context_history=cfg["hyperparams"].get("context_history", 20),
         label_window=return_window_days,
         prediction_return_clip=prediction_return_clip,
+        weight_adjust_delta=cfg["hyperparams"].get("weight_adjust_delta"),
     )
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
     evaluator = StrategyEvaluator(fee_rate=eval_fee_rate)
@@ -123,6 +143,20 @@ def main():
         logger.info(f"Saved SPO weight time series plot: {weights_plot_path}")
     else:
         logger.warning("SPO weights are empty; skipped weight outputs.")
+
+    if backtester.target_results is not None:
+        target_weights_path, target_weights_plot_path = evaluator.save_weight_outputs(
+            backtester.target_results,
+            exp_dir,
+            weights_filename="spo_target_weights.csv",
+            plot_filename="spo_target_weights_timeseries.png",
+            title="SPO Target Portfolio Weights Over Time",
+        )
+        if target_weights_path is not None:
+            logger.info(f"Saved SPO target weights: {target_weights_path}")
+            logger.info(
+                f"Saved SPO target weight time series plot: {target_weights_plot_path}"
+            )
 
     model_metrics = backtester.evaluate(feat_df, fee_rate=eval_fee_rate)
 

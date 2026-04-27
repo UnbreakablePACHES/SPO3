@@ -31,6 +31,7 @@ class SPOBacktester:
         self.seed = 42
         self.feature_contributions = None
         self.predicted_returns = None
+        self.target_results = None
 
     def run(
         self,
@@ -47,6 +48,7 @@ class SPOBacktester:
         context_history=20,
         label_window=21,
         prediction_return_clip=None,
+        weight_adjust_delta=None,
     ):
         """
         执行滚动回测。
@@ -91,6 +93,7 @@ class SPOBacktester:
         holding_periods = []
         contribution_rows = []
         predicted_return_rows = []
+        target_weights_rows = []
         requires_scenarios = getattr(self.opt_model, "requires_scenarios", False)
         scenario_history = int(
             getattr(self.opt_model, "scenario_history", context_history)
@@ -176,9 +179,12 @@ class SPOBacktester:
             )
             contribution_rows.append(contrib_df)
 
-            prev_w = (
-                all_weights[-1] if all_weights else np.zeros(num_assets, dtype=float)
+            initial_w = (
+                np.ones(num_assets, dtype=float) / num_assets
+                if weight_adjust_delta is not None
+                else np.zeros(num_assets, dtype=float)
             )
+            prev_w = all_weights[-1] if all_weights else initial_w
             if requires_scenarios:
                 scenario_returns = self._build_scenarios(
                     train_data=train_data,
@@ -193,13 +199,23 @@ class SPOBacktester:
                 }
                 if getattr(self.opt_model, "supports_turnover", False):
                     solve_kwargs["prev_weight"] = prev_w
-                weights, _ = self.opt_model.solve(**solve_kwargs)
+                target_weights, _ = self.opt_model.solve(**solve_kwargs)
             else:
-                weights, _ = self.opt_model.solve(
+                target_weights, _ = self.opt_model.solve(
                     cost_vec=pred_cost, prev_weight=prev_w
                 )
 
+            target_weights = np.asarray(target_weights, dtype=float)
+            if weight_adjust_delta is not None:
+                delta = float(weight_adjust_delta)
+                if not 0 < delta <= 1:
+                    raise ValueError("weight_adjust_delta must satisfy 0 < delta <= 1")
+                weights = prev_w + delta * (target_weights - prev_w)
+            else:
+                weights = target_weights
+
             all_weights.append(weights)
+            target_weights_rows.append(target_weights)
             rebalance_dt = pd.to_datetime(window.test_start)
             rebalance_dates.append(rebalance_dt)
             holding_periods.append((rebalance_dt, pd.to_datetime(window.test_end)))
@@ -222,6 +238,9 @@ class SPOBacktester:
             )
         self.predicted_returns = pd.DataFrame(
             predicted_return_rows, index=rebalance_dates, columns=tickers
+        )
+        self.target_results = pd.DataFrame(
+            target_weights_rows, index=rebalance_dates, columns=tickers
         )
         self.holding_periods = holding_periods
         if contribution_rows:
