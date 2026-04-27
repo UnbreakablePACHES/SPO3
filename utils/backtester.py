@@ -30,6 +30,7 @@ class SPOBacktester:
         )
         self.seed = 42
         self.feature_contributions = None
+        self.predicted_returns = None
 
     def run(
         self,
@@ -88,6 +89,7 @@ class SPOBacktester:
         rebalance_dates = []
         holding_periods = []
         contribution_rows = []
+        predicted_return_rows = []
         is_cvar = getattr(self.opt_model, "requires_scenarios", False)
         self.seed = seed
 
@@ -181,8 +183,13 @@ class SPOBacktester:
             rebalance_dt = pd.to_datetime(window.test_start)
             rebalance_dates.append(rebalance_dt)
             holding_periods.append((rebalance_dt, pd.to_datetime(window.test_end)))
+            # SPO is trained on cost = -forward return.
+            predicted_return_rows.append(-pred_cost)
 
         self.results = pd.DataFrame(all_weights, index=rebalance_dates, columns=tickers)
+        self.predicted_returns = pd.DataFrame(
+            predicted_return_rows, index=rebalance_dates, columns=tickers
+        )
         self.holding_periods = holding_periods
         if contribution_rows:
             self.feature_contributions = pd.concat(

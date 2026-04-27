@@ -45,8 +45,6 @@ def main():
     logger = ProjectLogger.get_logger()
     SeedManager.set_seed(cfg["seed"])
 
-    with open(os.path.join(exp_dir, "exp_config.yaml"), "w", encoding="utf-8") as f:
-        yaml.dump(cfg, f)
     logger.info(f"实验目录已创建: {exp_dir}")
 
     tickers = cfg["tickers"]
@@ -58,6 +56,10 @@ def main():
         cfg["model_args"]["lambda_cvar"] = args.lambda_cvar
     if args.context_history is not None:
         cfg["hyperparams"]["context_history"] = args.context_history
+    cfg["hyperparams"]["label_window"] = int(cfg["hyperparams"].get("label_window", 21))
+
+    with open(os.path.join(exp_dir, "exp_config.yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(cfg, f)
 
     vix_df = None
     if cfg["add_vix"]:
@@ -85,6 +87,7 @@ def main():
     backtester = SPOBacktester(
         opt_model=opt_model, trading_days_path=cfg.get("trading_days_path")
     )
+    return_window_days = cfg["hyperparams"]["label_window"]
 
     logger.info("开始执行训练与滚动回测...")
     backtester.run(
@@ -99,7 +102,7 @@ def main():
         seed=cfg["seed"],
         normalize_features=cfg.get("feature_normalization", True),
         context_history=cfg["hyperparams"].get("context_history", 20),
-        label_window=cfg["hyperparams"].get("label_window", 1),
+        label_window=return_window_days,
     )
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
     evaluator = StrategyEvaluator(fee_rate=eval_fee_rate)
@@ -149,7 +152,7 @@ def main():
         risk_aversion=risk_aversion,
         pred_epochs=po_pred_epochs,
         pred_lr=po_pred_lr,
-        label_window=cfg["hyperparams"].get("label_window", 1),
+        label_window=return_window_days,
     )
 
     returns_df = feat_df.pivot(
@@ -165,6 +168,26 @@ def main():
         returns_df=returns_df,
         holding_periods=po_holding,
     )
+    return_records, returns_csv_path, returns_plot_path = (
+        evaluator.save_rebalance_return_outputs(
+            spo_returns_df=backtester.predicted_returns,
+            pto_returns_df=baseline_runner.po_predicted_returns,
+            returns_df=returns_df,
+            holding_periods=backtester.holding_periods,
+            save_dir=exp_dir,
+            pred_window_days=return_window_days,
+            csv_filename="spo_pto_true_rebalance_returns.csv",
+            plot_filename="spo_pto_true_rebalance_returns.png",
+        )
+    )
+    if returns_csv_path is not None:
+        logger.info(
+            f"Saved SPO/PTO/true rebalance returns ({len(return_records)} rows): "
+            f"{returns_csv_path}"
+        )
+        logger.info(f"Saved SPO/PTO/true rebalance return plot: {returns_plot_path}")
+    else:
+        logger.warning("SPO/PTO rebalance returns are empty; skipped return plot.")
 
     all_metrics = {
         "SPO_Model": model_metrics,

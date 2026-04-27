@@ -227,6 +227,203 @@ class StrategyEvaluator:
         fig.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
         plt.close(fig)
 
+    def build_rebalance_return_records(
+        self,
+        spo_returns_df,
+        pto_returns_df,
+        returns_df,
+        holding_periods=None,
+        pred_window_days=21,
+    ):
+        columns = [
+            "rebalance_date",
+            "holding_start",
+            "holding_end",
+            "ticker",
+            f"spo_r_{pred_window_days}",
+            f"pto_r_{pred_window_days}",
+            "true_r_month",
+        ]
+        if (
+            spo_returns_df is None
+            or pto_returns_df is None
+            or returns_df is None
+            or spo_returns_df.empty
+            or pto_returns_df.empty
+            or returns_df.empty
+        ):
+            return pd.DataFrame(columns=columns)
+
+        spo_returns = spo_returns_df.copy()
+        pto_returns = pto_returns_df.copy()
+        returns = returns_df.copy()
+
+        spo_returns.index = pd.to_datetime(spo_returns.index)
+        pto_returns.index = pd.to_datetime(pto_returns.index)
+        returns.index = pd.to_datetime(returns.index)
+        returns = returns.sort_index()
+
+        common_dates = spo_returns.index.intersection(pto_returns.index).sort_values()
+        tickers = [
+            ticker
+            for ticker in spo_returns.columns
+            if ticker in pto_returns.columns and ticker in returns.columns
+        ]
+        if len(common_dates) == 0 or len(tickers) == 0:
+            return pd.DataFrame(columns=columns)
+
+        holding_end_by_start = {}
+        for start_dt, end_dt in holding_periods or []:
+            holding_end_by_start[pd.to_datetime(start_dt)] = pd.to_datetime(end_dt)
+
+        rows = []
+        for i, rebalance_dt in enumerate(common_dates):
+            holding_start = pd.to_datetime(rebalance_dt)
+            if holding_start in holding_end_by_start:
+                holding_end = holding_end_by_start[holding_start]
+            elif i < len(common_dates) - 1:
+                holding_end = pd.to_datetime(common_dates[i + 1]) - pd.Timedelta(days=1)
+            else:
+                holding_end = returns.index.max()
+
+            period_returns = returns.loc[
+                (returns.index >= holding_start) & (returns.index <= holding_end),
+                tickers,
+            ].sum(axis=0, min_count=1)
+
+            for ticker in tickers:
+                rows.append(
+                    {
+                        "rebalance_date": holding_start,
+                        "holding_start": holding_start,
+                        "holding_end": holding_end,
+                        "ticker": ticker,
+                        f"spo_r_{pred_window_days}": spo_returns.loc[
+                            rebalance_dt, ticker
+                        ],
+                        f"pto_r_{pred_window_days}": pto_returns.loc[
+                            rebalance_dt, ticker
+                        ],
+                        "true_r_month": period_returns.loc[ticker],
+                    }
+                )
+
+        return pd.DataFrame(rows, columns=columns)
+
+    def save_rebalance_return_outputs(
+        self,
+        spo_returns_df,
+        pto_returns_df,
+        returns_df,
+        holding_periods,
+        save_dir,
+        pred_window_days=21,
+        csv_filename="spo_pto_true_rebalance_returns.csv",
+        plot_filename="spo_pto_true_rebalance_returns.png",
+    ):
+        records = self.build_rebalance_return_records(
+            spo_returns_df=spo_returns_df,
+            pto_returns_df=pto_returns_df,
+            returns_df=returns_df,
+            holding_periods=holding_periods,
+            pred_window_days=pred_window_days,
+        )
+        if records.empty:
+            return records, None, None
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        csv_path = os.path.join(save_dir, csv_filename)
+        records.to_csv(csv_path, index=False)
+
+        plot_path = os.path.join(save_dir, plot_filename)
+        self.plot_rebalance_return_comparison(
+            records,
+            plot_path,
+            pred_window_days=pred_window_days,
+        )
+
+        return records, csv_path, plot_path
+
+    def plot_rebalance_return_comparison(
+        self,
+        records_df,
+        save_path,
+        pred_window_days=21,
+        title="SPO vs PTO Predicted Returns and Realized Monthly Returns",
+    ):
+        if records_df is None or records_df.empty:
+            return
+
+        plot_df = records_df.copy()
+        plot_df["rebalance_date"] = pd.to_datetime(plot_df["rebalance_date"])
+        tickers = list(plot_df["ticker"].drop_duplicates())
+        ncols = 2 if len(tickers) <= 4 else 3
+        nrows = int(np.ceil(len(tickers) / ncols))
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(6.2 * ncols, 3.2 * nrows),
+            sharex=True,
+            sharey=True,
+        )
+        axes = np.atleast_1d(axes).ravel()
+
+        spo_col = f"spo_r_{pred_window_days}"
+        pto_col = f"pto_r_{pred_window_days}"
+        line_specs = [
+            (spo_col, f"SPO r ({pred_window_days}D pred)", "#1f77b4", "-", "o"),
+            (pto_col, f"PTO r ({pred_window_days}D pred)", "#ff7f0e", "--", "s"),
+            ("true_r_month", "True r (month)", "#222222", "-", "^"),
+        ]
+
+        for ax, ticker in zip(axes, tickers):
+            asset_df = plot_df[plot_df["ticker"] == ticker].sort_values(
+                "rebalance_date"
+            )
+            for col, label, color, linestyle, marker in line_specs:
+                ax.plot(
+                    asset_df["rebalance_date"],
+                    asset_df[col],
+                    label=label,
+                    color=color,
+                    linestyle=linestyle,
+                    marker=marker,
+                    markersize=3,
+                    linewidth=1.6,
+                    alpha=0.9,
+                )
+            ax.axhline(0, color="#666666", linewidth=0.8, alpha=0.6)
+            ax.set_title(ticker, fontsize=11, fontweight="bold")
+            ax.grid(axis="y", linestyle="--", alpha=0.35)
+            ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+        for ax in axes[len(tickers) :]:
+            ax.set_visible(False)
+
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.suptitle(title, fontsize=15, fontweight="bold")
+        fig.text(0.5, 0.03, "Rebalance Date", ha="center")
+        fig.text(0.01, 0.5, "Cumulative Log Return", va="center", rotation="vertical")
+        fig.legend(
+            handles,
+            labels,
+            frameon=False,
+            loc="lower center",
+            ncol=3,
+            bbox_to_anchor=(0.5, 0.0),
+        )
+        fig.autofmt_xdate(rotation=30, ha="right")
+        fig.tight_layout(rect=[0.02, 0.07, 1, 0.96])
+
+        _dir = os.path.dirname(save_path)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
+        fig.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+
     def plot_performance(self, metrics, save_path):
         """
         功能 2: 绘制美化后的净值曲线和年度/月度收益图。

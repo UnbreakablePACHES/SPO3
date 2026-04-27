@@ -22,6 +22,7 @@ class BaselineRunner:
         self.trading_day_shifter = (
             TradingDayShifter(trading_days_path) if trading_days_path else None
         )
+        self.po_predicted_returns = None
 
     def _infer_backtest_range(self, df, window_months, test_start_date=None):
         first_date = pd.to_datetime(df["Date"].min())
@@ -154,7 +155,7 @@ class BaselineRunner:
         return labels
 
     def _fit_simple_linear_predictor(
-        self, train_data, tickers, feature_cols, epochs=30, lr=1e-3, label_window=1
+        self, train_data, tickers, feature_cols, epochs=30, lr=1e-3, label_window=21
     ):
         pivot = train_data.pivot(index="Date", columns="ticker").sort_index()
         x_all = pivot[feature_cols].values.reshape(-1, len(tickers), len(feature_cols))
@@ -244,7 +245,7 @@ class BaselineRunner:
         risk_aversion=10.0,
         pred_epochs=30,
         pred_lr=1e-3,
-        label_window=1,
+        label_window=21,
     ):
         tickers = sorted(df["ticker"].unique())
         feature_cols = [
@@ -264,6 +265,7 @@ class BaselineRunner:
         all_weights = []
         rebalance_dates = []
         holding_periods = []
+        predicted_return_rows = []
 
         for window in generator:
             train_data = df[
@@ -315,6 +317,10 @@ class BaselineRunner:
             all_weights.append(weights)
             rebalance_dates.append(rebalance_dt)
             holding_periods.append((rebalance_dt, pd.to_datetime(window.test_end)))
+            predicted_return_rows.append(mu_pred)
 
         weights_df = pd.DataFrame(all_weights, index=rebalance_dates, columns=tickers)
+        self.po_predicted_returns = pd.DataFrame(
+            predicted_return_rows, index=rebalance_dates, columns=tickers
+        )
         return weights_df, holding_periods
