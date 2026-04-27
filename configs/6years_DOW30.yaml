@@ -1,6 +1,6 @@
 # 实验环境配置
 seed: 42
-data_dir: "data/raw/B_etfs"
+data_dir: "data/raw/DOW30"
 output_dir: "outputs"
 trading_days_path: "data/tradingdays(2013-2025).csv"
 
