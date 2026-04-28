@@ -13,6 +13,9 @@ CONFIGS = [
 ]
 
 LAMBDA_RISKS = [0.1, 1, 10, 20, 50]
+BACKTEST_START_DATE = "2020-01-01"
+WINDOW_MONTHS = 12
+COV_HISTORY = 220
 
 
 def lambda_tag(value):
@@ -24,7 +27,11 @@ def write_sweep_config(source_config, lambda_risk, sweep_dir):
         cfg = yaml.safe_load(f)
 
     cfg.setdefault("model_args", {})
+    cfg.setdefault("hyperparams", {})
+    cfg["backtest_start_date"] = BACKTEST_START_DATE
+    cfg["hyperparams"]["window_months"] = WINDOW_MONTHS
     cfg["model_args"]["lambda_risk"] = float(lambda_risk)
+    cfg["model_args"]["cov_history"] = COV_HISTORY
 
     target = sweep_dir / (
         f"{source_config.stem}_lambda_{lambda_tag(lambda_risk)}{source_config.suffix}"

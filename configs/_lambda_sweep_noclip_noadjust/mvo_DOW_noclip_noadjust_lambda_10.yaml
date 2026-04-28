@@ -35,7 +35,7 @@ tickers:
 - WMT
 start_date: '2019-01-01'
 end_date: '2025-12-31'
-backtest_start_date: "2020-01-01"
+backtest_start_date: '2020-01-01'
 add_vix: false
 prediction_return_clip: null
 feature_normalization: true
@@ -44,7 +44,7 @@ model_type: markowitz
 pred_type: linear
 hyperparams:
   fee_rate: 0.005
-  window_months: 15
+  window_months: 12
   epochs: 20
   lr: 0.001
   batch_size: 32
@@ -55,7 +55,7 @@ model_args:
   alpha: 0.95
   lambda_cvar: 1.0
   lambda_risk: 10.0
-  cov_history: 252
+  cov_history: 220
   cov_reg: 1.0e-06
   budget: 1.0
 baseline_args:

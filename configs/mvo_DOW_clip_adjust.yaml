@@ -26,7 +26,7 @@ pred_type: "linear"
 
 hyperparams:
   fee_rate: 0.005
-  window_months: 15
+  window_months: 12
   epochs: 20
   lr: 0.001
   batch_size: 32
@@ -39,7 +39,7 @@ model_args:
   alpha: 0.95
   lambda_cvar: 1.0
   lambda_risk: 20
-  cov_history: 252
+  cov_history: 220
   cov_reg: 0.000001
   budget: 1.0
 
