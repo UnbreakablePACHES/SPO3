@@ -7,7 +7,7 @@ tickers: ["EEM", "EFA", "JPXN", "SPY", "XLK", "VTI", "AGG", "DBC"]
 
 start_date: "2019-01-01"
 end_date: "2025-12-31"
-backtest_start_date: "2020-04-01"
+backtest_start_date: "2020-01-01"
 
 add_vix: False
 prediction_return_clip: 0.1

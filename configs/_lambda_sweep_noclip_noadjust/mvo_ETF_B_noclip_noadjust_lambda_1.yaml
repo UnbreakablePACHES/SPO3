@@ -1,0 +1,44 @@
+seed: 42
+data_dir: data/raw/B_etfs
+output_dir: outputs
+trading_days_path: data/tradingdays(2013-2025).csv
+tickers:
+- SPY
+- QQQ
+- IWM
+- XLK
+- XLF
+- XLE
+- XLV
+- XLY
+- XLP
+- XLI
+start_date: '2019-01-01'
+end_date: '2025-12-31'
+backtest_start_date: "2020-01-01"
+add_vix: false
+prediction_return_clip: null
+feature_normalization: true
+save_feature_contribution: true
+model_type: markowitz
+pred_type: linear
+hyperparams:
+  fee_rate: 0.005
+  window_months: 15
+  epochs: 20
+  lr: 0.001
+  batch_size: 32
+  rebalance_freq: MS
+  label_window: 21
+  context_history: 20
+model_args:
+  alpha: 0.95
+  lambda_cvar: 1.0
+  lambda_risk: 1.0
+  cov_history: 252
+  cov_reg: 1.0e-06
+  budget: 1.0
+baseline_args:
+  risk_aversion: 10.0
+  po_pred_epochs: 30
+  po_pred_lr: 0.001
