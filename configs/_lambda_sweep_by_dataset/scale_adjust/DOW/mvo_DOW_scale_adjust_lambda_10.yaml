@@ -18,7 +18,7 @@ backtest_start_date: "2020-01-01"
 
 add_vix: False
 prediction_return_clip: null
-prediction_return_rescale_range: [-0.2, 0.2]
+prediction_return_rescale_range: [-0.1, 0.1]
 feature_normalization: True
 save_feature_contribution: True
 
