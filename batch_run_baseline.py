@@ -114,6 +114,7 @@ def run_one(dataset, config_path, risk_aversion, output_root):
     prediction_return_clip = cfg.get(
         "prediction_return_clip", cfg.pop("prediction_daily_return_clip", None)
     )
+    prediction_return_rescale_range = cfg.get("prediction_return_rescale_range")
 
     markowitz_weights, markowitz_holding = baseline_runner.run_markowitz(
         df=feat_df,
@@ -132,6 +133,7 @@ def run_one(dataset, config_path, risk_aversion, output_root):
         pred_lr=baseline_args.get("po_pred_lr", 1e-3),
         label_window=int(hp.get("label_window", 21)),
         prediction_return_clip=prediction_return_clip,
+        prediction_return_rescale_range=prediction_return_rescale_range,
     )
 
     returns_df = feat_df.pivot(

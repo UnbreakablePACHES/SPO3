@@ -30,12 +30,31 @@ def _build_experiment_dir(output_dir: str, config_name: str):
     return exp_dir
 
 
+def _parse_float_range(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if text.lower() in {"none", "null"}:
+            return None
+        text = text.strip("[]()")
+        parts = [p.strip() for p in text.split(",") if p.strip()]
+        value = [float(p) for p in parts]
+    if len(value) != 2:
+        raise ValueError("prediction_return_rescale_range must contain two numbers")
+    low, high = float(value[0]), float(value[1])
+    if not low < high:
+        raise ValueError("prediction_return_rescale_range must satisfy low < high")
+    return [low, high]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="configs/config.yaml")
     parser.add_argument("--add_vix", type=str, default=None)
     parser.add_argument("--model_type", type=str, default=None)
     parser.add_argument("--prediction_return_clip", type=str, default=None)
+    parser.add_argument("--prediction_return_rescale_range", type=str, default=None)
     parser.add_argument("--weight_adjust_delta", type=float, default=None)
     parser.add_argument("--lambda_cvar", type=float, default=None)
     parser.add_argument("--lambda_risk", type=float, default=None)
@@ -83,6 +102,19 @@ def main():
         else:
             cfg["prediction_return_clip"] = float(args.prediction_return_clip)
     prediction_return_clip = cfg["prediction_return_clip"]
+    cfg["prediction_return_rescale_range"] = _parse_float_range(
+        cfg.get("prediction_return_rescale_range")
+    )
+    if args.prediction_return_rescale_range is not None:
+        cfg["prediction_return_rescale_range"] = _parse_float_range(
+            args.prediction_return_rescale_range
+        )
+    prediction_return_rescale_range = cfg["prediction_return_rescale_range"]
+    if prediction_return_clip is not None and prediction_return_rescale_range is not None:
+        raise ValueError(
+            "Use either prediction_return_clip or "
+            "prediction_return_rescale_range, not both"
+        )
 
     with open(os.path.join(exp_dir, "exp_config.yaml"), "w", encoding="utf-8") as f:
         yaml.dump(cfg, f)
@@ -130,6 +162,7 @@ def main():
         context_history=cfg["hyperparams"].get("context_history", 20),
         label_window=return_window_days,
         prediction_return_clip=prediction_return_clip,
+        prediction_return_rescale_range=prediction_return_rescale_range,
         weight_adjust_delta=cfg["hyperparams"].get("weight_adjust_delta"),
     )
     eval_fee_rate = cfg["hyperparams"]["fee_rate"]
@@ -196,6 +229,7 @@ def main():
         pred_lr=po_pred_lr,
         label_window=return_window_days,
         prediction_return_clip=prediction_return_clip,
+        prediction_return_rescale_range=prediction_return_rescale_range,
     )
 
     returns_df = feat_df.pivot(

@@ -54,18 +54,35 @@ class StrategyEvaluator:
         w = daily_weights.loc[common_dates].values
         r = returns_df.loc[common_dates, daily_weights.columns].values
 
-        rebalance_dates = pd.Index(pd.to_datetime(weights_df.index)).intersection(
-            common_dates
-        )
-
         turnover_series = np.zeros(len(common_dates))
-        for i, dt in enumerate(rebalance_dates):
+        weights_for_turnover = weights_df.copy()
+        weights_for_turnover.index = pd.to_datetime(weights_for_turnover.index)
+
+        for i, dt in enumerate(weights_for_turnover.index):
             if i == 0:
-                prev_w = np.zeros(len(weights_df.columns))
+                # Do not count the initial portfolio construction as rebalance turnover.
+                prev_w = weights_for_turnover.iloc[i].values
             else:
-                prev_w = weights_df.iloc[i - 1].values
-            cur_w = weights_df.loc[dt].values
-            turnover_series[common_dates.get_loc(dt)] = np.sum(np.abs(cur_w - prev_w))
+                prev_w = weights_for_turnover.iloc[i - 1].values
+            cur_w = weights_for_turnover.iloc[i].values
+
+            if holding_periods is not None and i < len(holding_periods):
+                trade_start = pd.to_datetime(holding_periods[i][0])
+                trade_end = pd.to_datetime(holding_periods[i][1])
+            else:
+                trade_start = dt
+                trade_end = common_dates.max()
+
+            valid_trade_dates = common_dates[
+                (common_dates >= trade_start) & (common_dates <= trade_end)
+            ]
+            if len(valid_trade_dates) == 0:
+                continue
+
+            trade_dt = valid_trade_dates[0]
+            turnover_series[common_dates.get_loc(trade_dt)] = np.sum(
+                np.abs(cur_w - prev_w)
+            )
 
         # 计算收益
         if self.returns_type == "log":
@@ -90,7 +107,7 @@ class StrategyEvaluator:
         max_drawdown = np.min(drawdown)
         avg_turnover = (
             np.mean(turnover_series[turnover_series > 0])
-            if rebalance_dates.size > 1
+            if np.count_nonzero(turnover_series) > 0
             else 0.0
         )
 

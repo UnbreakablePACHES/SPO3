@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from utils.window_generator import RollingWindowGenerator
 from utils.trading_days import TradingDayShifter
+from utils.prediction_transforms import rescale_to_range
 from predictors.simple_linear import SimpleLinear
 
 
@@ -254,6 +255,7 @@ class BaselineRunner:
         pred_lr=1e-3,
         label_window=21,
         prediction_return_clip=None,
+        prediction_return_rescale_range=None,
     ):
         tickers = sorted(df["ticker"].unique())
         feature_cols = [
@@ -316,9 +318,19 @@ class BaselineRunner:
             predictor.eval()
             with torch.no_grad():
                 mu_pred = predictor(x_step.to(self.device)).cpu().numpy().reshape(-1)
+            if (
+                prediction_return_clip is not None
+                and prediction_return_rescale_range is not None
+            ):
+                raise ValueError(
+                    "Use either prediction_return_clip or "
+                    "prediction_return_rescale_range, not both"
+                )
             if prediction_return_clip is not None:
                 clip = abs(float(prediction_return_clip))
                 mu_pred = np.clip(mu_pred, -clip, clip)
+            elif prediction_return_rescale_range is not None:
+                mu_pred = rescale_to_range(mu_pred, prediction_return_rescale_range)
 
             weights = self._solve_markowitz(
                 mu=mu_pred, cov=cov, risk_aversion=risk_aversion

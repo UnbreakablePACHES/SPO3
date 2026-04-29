@@ -6,7 +6,14 @@ from pathlib import Path
 
 SWEEP_ROOT = Path("configs/_lambda_sweep_by_dataset")
 OUTPUT_ROOT = Path("outputs/_lambda_sweep_by_dataset")
-GROUP_ORDER = ["noclip_noadjust", "noclip_adjust", "clip_noadjust", "clip_adjust"]
+GROUP_ORDER = [
+    "noclip_noadjust",
+    "noclip_adjust",
+    "clip_noadjust",
+    "clip_adjust",
+    "scale_noadjust",
+    "scale_adjust",
+]
 DATASET_ORDER = ["ETF_A", "ETF_B", "DOW"]
 
 

@@ -9,6 +9,7 @@ from utils.window_generator import RollingWindowGenerator
 from utils.data_loader import SPODataset
 from utils.metrics import StrategyEvaluator
 from utils.trading_days import TradingDayShifter
+from utils.prediction_transforms import rescale_to_range
 from predictors.simple_linear import SimpleLinear
 from losses.SPOplus_loss import SPOPlusLoss
 
@@ -48,6 +49,7 @@ class SPOBacktester:
         context_history=20,
         label_window=21,
         prediction_return_clip=None,
+        prediction_return_rescale_range=None,
         weight_adjust_delta=None,
     ):
         """
@@ -167,9 +169,22 @@ class SPOBacktester:
             )
             pred_cost = trainer.predict(x_step).flatten()
             pred_return = -pred_cost
+            if (
+                prediction_return_clip is not None
+                and prediction_return_rescale_range is not None
+            ):
+                raise ValueError(
+                    "Use either prediction_return_clip or "
+                    "prediction_return_rescale_range, not both"
+                )
             if prediction_return_clip is not None:
                 clip = abs(float(prediction_return_clip))
                 pred_return = np.clip(pred_return, -clip, clip)
+                pred_cost = -pred_return
+            elif prediction_return_rescale_range is not None:
+                pred_return = rescale_to_range(
+                    pred_return, prediction_return_rescale_range
+                )
                 pred_cost = -pred_return
             contrib_df = predictor.get_feature_contributions(
                 x_step=x_step,
