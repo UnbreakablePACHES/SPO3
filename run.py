@@ -41,10 +41,13 @@ def main():
     parser.add_argument("--lambda_risk", type=float, default=None)
     parser.add_argument("--cov_history", type=int, default=None)
     parser.add_argument("--context_history", type=int, default=None)
+    parser.add_argument("--output_dir", type=str, default=None)
     args = parser.parse_args()
 
     config_name = os.path.splitext(os.path.basename(args.config))[0]
     cfg = _load_config(args.config, args.add_vix)
+    if args.output_dir is not None:
+        cfg["output_dir"] = args.output_dir
     exp_dir = _build_experiment_dir(cfg["output_dir"], config_name)
 
     logger = ProjectLogger.get_logger()
